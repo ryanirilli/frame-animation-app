@@ -6,7 +6,9 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import { produce } from "immer";
+import { produce, enableMapSet } from "immer";
+
+enableMapSet();
 
 const DEFAULT_NUM_FRAMES = 12;
 const DEFAULT_FPS = 12;
@@ -25,6 +27,7 @@ interface AnimationState {
   pendingFrameCount: number;
   fps: number;
   undoStack: TUndoState;
+  keyframes: Set<number>;
 }
 
 type AnimationAction =
@@ -35,7 +38,8 @@ type AnimationAction =
   | { type: "APPLY_FRAME_COUNT" }
   | { type: "SET_FPS"; fps: number }
   | { type: "SAVE_DRAWING_STATE"; frameData: string }
-  | { type: "UNDO" };
+  | { type: "UNDO" }
+  | { type: "TOGGLE_KEYFRAME"; frame: number };
 
 const initialState: AnimationState = {
   frames: Array(DEFAULT_NUM_FRAMES).fill(""),
@@ -45,78 +49,99 @@ const initialState: AnimationState = {
   pendingFrameCount: DEFAULT_NUM_FRAMES,
   fps: DEFAULT_FPS,
   undoStack: { frameIndex: -1, states: [] },
+  keyframes: new Set<number>(),
 };
 
-const animationReducer = produce((draft: AnimationState, action: AnimationAction) => {
-  switch (action.type) {
-    case 'SET_FRAME_DATA': {
-      draft.frames[action.frameIndex] = action.data;
-      break;
-    }
-
-    case 'SET_ACTIVE_FRAME': {
-      const newFrame = action.frame;
-      // Reset undo stack when changing frames
-      draft.undoStack = {
-        frameIndex: newFrame,
-        states: draft.frames[newFrame] ? [draft.frames[newFrame]] : []
-      };
-      draft.activeFrame = newFrame;
-      break;
-    }
-
-    case 'SAVE_DRAWING_STATE': {
-      draft.frames[draft.activeFrame] = action.frameData;
-      draft.undoStack.states.push(action.frameData);
-      
-      if (draft.undoStack.states.length > MAX_UNDO_STATES) {
-        draft.undoStack.states.shift(); // Remove oldest state
+const animationReducer = produce(
+  (draft: AnimationState, action: AnimationAction) => {
+    switch (action.type) {
+      case "SET_FRAME_DATA": {
+        draft.frames[action.frameIndex] = action.data;
+        break;
       }
-      break;
-    }
 
-    case 'UNDO': {
-      if (draft.undoStack.states.length === 0) {
-        return;
+      case "SET_ACTIVE_FRAME": {
+        const newFrame = action.frame;
+        // Reset undo stack when changing frames
+        draft.undoStack = {
+          frameIndex: newFrame,
+          states: draft.frames[newFrame] ? [draft.frames[newFrame]] : [],
+        };
+        draft.activeFrame = newFrame;
+        break;
       }
-      
-      draft.undoStack.states.pop();
-      const previousState = draft.undoStack.states[draft.undoStack.states.length - 1] ?? "";
-      draft.frames[draft.activeFrame] = previousState;
-      break;
-    }
 
-    case 'SET_PLAYING': {
-      draft.isPlaying = action.isPlaying;
-      break;
-    }
+      case "SAVE_DRAWING_STATE": {
+        draft.frames[draft.activeFrame] = action.frameData;
+        draft.undoStack.states.push(action.frameData);
 
-    case 'SET_PENDING_FRAME_COUNT': {
-      draft.pendingFrameCount = action.count;
-      break;
-    }
-
-    case 'APPLY_FRAME_COUNT': {
-      draft.isPlaying = false;
-      draft.numFrames = draft.pendingFrameCount;
-      
-      if (draft.pendingFrameCount > draft.frames.length) {
-        const extraFrames = Array(draft.pendingFrameCount - draft.frames.length).fill("");
-        draft.frames.push(...extraFrames);
-      } else {
-        draft.frames.length = draft.pendingFrameCount;
+        if (draft.undoStack.states.length > MAX_UNDO_STATES) {
+          draft.undoStack.states.shift(); // Remove oldest state
+        }
+        break;
       }
-      
-      draft.activeFrame = Math.min(draft.activeFrame, draft.pendingFrameCount - 1);
-      break;
-    }
 
-    case 'SET_FPS': {
-      draft.fps = action.fps;
-      break;
+      case "UNDO": {
+        if (draft.undoStack.states.length === 0) {
+          return;
+        }
+
+        draft.undoStack.states.pop();
+        const previousState =
+          draft.undoStack.states[draft.undoStack.states.length - 1] ?? "";
+        draft.frames[draft.activeFrame] = previousState;
+        break;
+      }
+
+      case "SET_PLAYING": {
+        draft.isPlaying = action.isPlaying;
+        break;
+      }
+
+      case "SET_PENDING_FRAME_COUNT": {
+        draft.pendingFrameCount = action.count;
+        break;
+      }
+
+      case "APPLY_FRAME_COUNT": {
+        draft.isPlaying = false;
+        draft.numFrames = draft.pendingFrameCount;
+
+        if (draft.pendingFrameCount > draft.frames.length) {
+          const extraFrames = Array(
+            draft.pendingFrameCount - draft.frames.length
+          ).fill("");
+          draft.frames.push(...extraFrames);
+        } else {
+          draft.frames.length = draft.pendingFrameCount;
+        }
+
+        draft.activeFrame = Math.min(
+          draft.activeFrame,
+          draft.pendingFrameCount - 1
+        );
+        break;
+      }
+
+      case "SET_FPS": {
+        draft.fps = action.fps;
+        break;
+      }
+
+      case "TOGGLE_KEYFRAME": {
+        const keyframesArray = Array.from(draft.keyframes);
+        if (keyframesArray.includes(action.frame)) {
+          draft.keyframes = new Set(
+            keyframesArray.filter((frame) => frame !== action.frame)
+          );
+        } else {
+          draft.keyframes = new Set([...keyframesArray, action.frame]);
+        }
+        break;
+      }
     }
   }
-});
+);
 
 interface AnimationContextType extends Omit<AnimationState, "undoStack"> {
   canUndo: boolean;
@@ -128,6 +153,7 @@ interface AnimationContextType extends Omit<AnimationState, "undoStack"> {
   setFps: (fps: number) => void;
   saveDrawingState: (frameData: string) => void;
   handleUndo: () => void;
+  toggleKeyframe: (frame: number) => void;
 }
 
 const AnimationContext = createContext<AnimationContextType | null>(null);
@@ -135,7 +161,7 @@ const AnimationContext = createContext<AnimationContextType | null>(null);
 export function AnimationProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(animationReducer, initialState);
   const animationFrameRef = useRef<number>();
-  const lastFrameTime = useRef(0);  
+  const lastFrameTime = useRef(0);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -237,6 +263,10 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
 
     handleUndo: useCallback(() => {
       dispatch({ type: "UNDO" });
+    }, []),
+
+    toggleKeyframe: useCallback((frame: number) => {
+      dispatch({ type: "TOGGLE_KEYFRAME", frame });
     }, []),
   };
 
