@@ -1,14 +1,9 @@
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
-import { useAnimation } from '@/contexts/AnimationContext';
+import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
+import { useAnimation } from "@/contexts/AnimationContext";
 
 export const PlaybackControls: React.FC = () => {
-  const {
-    frames,
-    activeFrame,
-    setActiveFrame,
-    isPlaying,
-    setIsPlaying
-  } = useAnimation();
+  const { frames, activeFrame, setActiveFrame, isPlaying, setIsPlaying } =
+    useAnimation();
 
   const handlePrevFrame = () => {
     setActiveFrame(activeFrame === 0 ? frames.length - 1 : activeFrame - 1);
@@ -23,10 +18,10 @@ export const PlaybackControls: React.FC = () => {
   };
 
   return (
-    <div className="flex justify-center gap-2">
+    <div className="flex justify-center gap-2 rounded-lg bg-backgroundContrast overflow-hidden">
       <button
         onClick={handlePrevFrame}
-        className="p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="p-2  hover:bg-blue-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Previous frame"
         disabled={isPlaying}
       >
@@ -34,7 +29,7 @@ export const PlaybackControls: React.FC = () => {
       </button>
       <button
         onClick={togglePlayback}
-        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+        className="p-2  hover:bg-blue-500 hover:text-white transition-colors"
         aria-label={isPlaying ? "Pause" : "Play"}
       >
         {isPlaying ? (
@@ -45,7 +40,7 @@ export const PlaybackControls: React.FC = () => {
       </button>
       <button
         onClick={handleNextFrame}
-        className="p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="p-2  hover:bg-blue-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Next frame"
         disabled={isPlaying}
       >

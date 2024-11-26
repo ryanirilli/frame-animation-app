@@ -3,24 +3,26 @@
 "use client";
 
 import React, { useRef, useEffect, useState } from "react";
-import CanvasDraw from "react-canvas-draw";
+import CanvasDraw, { CanvasDrawProps } from "react-canvas-draw";
 import { useAnimation } from "@/contexts/AnimationContext";
 
 type TOverlayFrame = {
   index: number;
   data: string;
   opacity: string;
-}
+};
 
-const defaultCanvasProps = {
+const defaultCanvasProps: CanvasDrawProps = {
   brushRadius: 2,
   lazyRadius: 0,
+  brushColor: "#312f2f",
 };
 
 const Canvas: React.FC = () => {
   const canvasRef = useRef<CanvasDraw | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { activeFrame, frames, isPlaying, saveDrawingState, keyframes } = useAnimation();
+  const { activeFrame, frames, isPlaying, saveDrawingState, keyframes } =
+    useAnimation();
 
   // Canvas dimensions maintaining 16:9 ratio
   const maxWidth = 1000;
@@ -94,7 +96,7 @@ const Canvas: React.FC = () => {
     }
 
     // Add keyframe overlays
-    Array.from(keyframes).forEach(frameIndex => {
+    Array.from(keyframes).forEach((frameIndex) => {
       if (frameIndex !== activeFrame && frames[frameIndex]) {
         overlays.push({
           index: frameIndex,
@@ -114,12 +116,12 @@ const Canvas: React.FC = () => {
         ...data,
         lines: data.lines.map((line: any) => ({
           ...line,
-          brushColor: color
-        }))
+          brushColor: color,
+        })),
       };
       return JSON.stringify(modifiedData);
     } catch (e) {
-      console.error('Error modifying save data color:', e);
+      console.error("Error modifying save data color:", e);
       return saveData;
     }
   };
@@ -127,7 +129,7 @@ const Canvas: React.FC = () => {
   return (
     <div className="relative" style={{ width: maxWidth, height }}>
       {/* Overlays */}
-      {getOverlayFrames().map(({ index, data, opacity, color }) => (
+      {getOverlayFrames().map(({ index, data, opacity }) => (
         <div
           key={index}
           className="absolute inset-0 pointer-events-none z-50"
@@ -153,7 +155,7 @@ const Canvas: React.FC = () => {
         ref={canvasRef}
         canvasWidth={maxWidth}
         canvasHeight={height}
-        className="border border-gray-300 rounded relative z-10"
+        className="border border-backgroundContrast rounded relative z-10"
       />
     </div>
   );

@@ -18,7 +18,7 @@ export function FrameRateControl() {
               ${
                 fps === option
                   ? "bg-blue-500 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
+                  : "bg-backgroundContrast text-gray-700 hover:bg-gray-50"
               }
               border border-gray-200
               first:rounded-l-lg first:border-r-0

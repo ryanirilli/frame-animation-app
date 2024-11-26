@@ -9,14 +9,16 @@ import { PlaybackControls } from "@/components/PlaybackControls";
 export default function Home() {
   return (
     <AnimationProvider>
-      <div className="flex flex-col items-center p-4">
-        <Canvas />
-        <div className="flex items-center gap-4 justify-between w-full max-w-[1000px] py-4">
-          <FrameCountInput />
-          <PlaybackControls />
-          <FrameRateControl />
+      <div className="min-h-screen flex items-center justify-center p-8">
+        <div className="flex flex-col items-center gap-6">
+          <Canvas />
+          <div className="flex items-center gap-4 justify-between w-full max-w-[1000px]">
+            <FrameCountInput />
+            <PlaybackControls />
+            <FrameRateControl />
+          </div>
+          <Timeline />
         </div>
-        <Timeline />
       </div>
     </AnimationProvider>
   );
