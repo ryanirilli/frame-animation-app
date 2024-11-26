@@ -6,6 +6,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
+import GIF from "gif.js";
 import { produce, enableMapSet } from "immer";
 
 enableMapSet();
@@ -28,6 +29,7 @@ interface AnimationState {
   fps: number;
   undoStack: TUndoState;
   keyframes: Set<number>;
+  isExporting: boolean;
 }
 
 type AnimationAction =
@@ -39,7 +41,8 @@ type AnimationAction =
   | { type: "SET_FPS"; fps: number }
   | { type: "SAVE_DRAWING_STATE"; frameData: string }
   | { type: "UNDO" }
-  | { type: "TOGGLE_KEYFRAME"; frame: number };
+  | { type: "TOGGLE_KEYFRAME"; frame: number }
+  | { type: "SET_EXPORTING"; isExporting: boolean };
 
 const initialState: AnimationState = {
   frames: Array(DEFAULT_NUM_FRAMES).fill(""),
@@ -50,6 +53,7 @@ const initialState: AnimationState = {
   fps: DEFAULT_FPS,
   undoStack: { frameIndex: -1, states: [] },
   keyframes: new Set<number>(),
+  isExporting: false,
 };
 
 const animationReducer = produce(
@@ -139,6 +143,11 @@ const animationReducer = produce(
         }
         break;
       }
+
+      case "SET_EXPORTING": {
+        draft.isExporting = action.isExporting;
+        break;
+      }
     }
   }
 );
@@ -154,6 +163,8 @@ interface AnimationContextType extends Omit<AnimationState, "undoStack"> {
   saveDrawingState: (frameData: string) => void;
   handleUndo: () => void;
   toggleKeyframe: (frame: number) => void;
+  isExporting: boolean;
+  exportAnimation: () => Promise<void>;
 }
 
 const AnimationContext = createContext<AnimationContextType | null>(null);
@@ -227,6 +238,98 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
     };
   }, [state.isPlaying, state.frames.length, state.fps, state.activeFrame]);
 
+  const createCanvasFromSaveData = (
+    saveData: string,
+    width: number,
+    height: number
+  ): HTMLCanvasElement => {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d")!;
+
+    try {
+      const data = JSON.parse(saveData);
+      ctx.fillStyle = data.backgroundColor || "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+
+      data.lines.forEach((line: any) => {
+        ctx.beginPath();
+        ctx.strokeStyle = line.brushColor;
+        ctx.lineWidth = line.brushRadius * 2;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+
+        line.points.forEach((point: any, i: number) => {
+          if (i === 0) {
+            ctx.moveTo(point.x, point.y);
+          } else {
+            ctx.lineTo(point.x, point.y);
+          }
+        });
+
+        ctx.stroke();
+      });
+    } catch (e) {
+      console.error("Error parsing save data:", e);
+    }
+
+    return canvas;
+  };
+
+  const exportAnimation = useCallback(async () => {
+    if (state.isExporting) return;
+
+    try {
+      dispatch({ type: "SET_EXPORTING", isExporting: true });
+
+      // Filter out empty frames
+      const nonEmptyFrames = state.frames.filter((frame) => frame);
+      if (nonEmptyFrames.length === 0) {
+        throw new Error("No frames to export");
+      }
+
+      // Create canvases for each frame
+      const width = 1000;
+      const height = Math.round(width / (16 / 9));
+      const frameCanvases = nonEmptyFrames.map((frame) =>
+        createCanvasFromSaveData(frame, width, height)
+      );
+
+      // Initialize GIF encoder
+      const gif = new GIF({
+        workers: 2,
+        quality: 10,
+        width,
+        height,
+        workerScript: "/scripts/gif.worker.js",
+      });
+
+      // Add frames to GIF
+      frameCanvases.forEach((canvas) => {
+        gif.addFrame(canvas, { delay: 1000 / state.fps });
+      });
+
+      // Render and download GIF
+      gif.on("finished", (blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "animation.gif";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        dispatch({ type: "SET_EXPORTING", isExporting: false });
+      });
+
+      gif.render();
+    } catch (error) {
+      console.error("Error exporting animation:", error);
+      dispatch({ type: "SET_EXPORTING", isExporting: false });
+    }
+  }, [state.frames, state.fps, state.isExporting]);
+
   const value: AnimationContextType = {
     ...state,
     canUndo: state.undoStack.states.length > 0,
@@ -268,6 +371,8 @@ export function AnimationProvider({ children }: { children: React.ReactNode }) {
     toggleKeyframe: useCallback((frame: number) => {
       dispatch({ type: "TOGGLE_KEYFRAME", frame });
     }, []),
+
+    exportAnimation,
   };
 
   return (
